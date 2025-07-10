@@ -20,7 +20,7 @@ Este projeto é uma API simples em Python usando **FastAPI**, com uma estrutura 
 ## 📥 Instalação
 
 ``` bash
-git clone #urlRepo
+git clone https://github.com/kairohdx/Migracao-de-Dados-API-Python
 cd seu-repo
 python -m venv venv
 source venv/bin/activate  # ou venv\Scripts\activate no Windows
