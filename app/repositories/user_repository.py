@@ -1,35 +1,43 @@
-from sqlalchemy import select
+from sqlalchemy import insert, select
 from sqlalchemy.exc import SQLAlchemyError
 from app.models.database import SessionLocal
-from app.models.entities.user_model import User
+from app.models.entities import User
+from app.repositories.base_repository import BaseRepository
 
 
-class UserRepository:
+class UserRepository(BaseRepository):
+    
+    def __init__(self, session = SessionLocal):
+        super().__init__(session)
 
-    async def insert_user(self, user: User) -> User:  
-        """Insere um usuario no banco de dados."""  
-        async with SessionLocal() as session:  
-            async with session.begin():  
-                session.add(user)  
-                return user 
+    async def bulk_insert_users(self, users: list[User]):
+        """Insere múltiplos usuarios de uma só vez"""
+        if not users:
+            return
 
-    async def get_by_id(user_id:int) -> User | None:
-        """Recupera um usuario do banco de dados por ID"""
-        if user_id <= 0:
-            raise ValueError("ID do usuario invalido.")
+        f_users = await self.filter_existing_users(users=users) # remove da lista os registros já cadastrados no banco
 
-        try:
-            async with SessionLocal() as session:  
-                stmt = select(User).where(User.id == user_id)
-                result = await session.execute(stmt)
-                return result.scalar_one_or_none()
-                
-        except SQLAlchemyError as e:
-            raise
+        if f_users:
+            values_list = [{"user_id": user.user_id, "name": user.name} for user in f_users]
+            stmt = insert(User).values(values_list)
+            await self.session.execute(stmt)
+            await self.session.commit()
 
     async def user_exists(self, user_id: int) -> bool:
         """Verifica se um usuario existe (True/False)."""
-        async with SessionLocal() as session:
-            stmt = select(User.id).where(User.id == user_id)
-            result = await session.execute(stmt)
-            return result.scalar() is not None
+        stmt = select(User.id).where(User.id == user_id)
+        result = await self.session.execute(stmt)
+        return result.scalar() is not None
+
+    async def filter_existing_users(self, users: list[User]) -> list[User]:
+        """Filtra uma lista de usuários, retornando apenas os que não existem no banco."""
+        if not users:
+            return []
+        
+        user_ids = [user.user_id for user in users]
+
+        stmt = select(User.user_id).where(User.user_id.in_(user_ids))
+        result = await self.session.execute(stmt)
+        existing_ids = {row[0] for row in result.all()}
+
+        return [user for user in users if user.user_id not in existing_ids]
